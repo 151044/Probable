@@ -173,6 +173,28 @@ public class EvalSnippet {
             }else{
                 return new Warning(build.append("Warning: One or more variables cannot be found!\n").toString(), build.toString());
             }
+        }else if(toEval.contains("=")) {
+            String[] split = toEval.split("=");
+            String name = toEval.trim();
+            if(store.hasVariable(name)){
+                if(!Arrays.asList(split).contains("--overwrite")){
+                    return new Failure("Variable " + name + " already exists!");
+                }else{
+                    EvalResult eval = evalArithmetic(split[1]);
+                    if(eval.isSuccess()) {
+                        return new Warning("Variable " + name + " has been overwritten!", eval.getValue(Function.identity()));
+                    }else{
+                        return eval;
+                    }
+                }
+            }else {
+                EvalResult eval = evalArithmetic(split[1]);
+                if(eval.isSuccess()) {
+                    return new Success("Variable " + name + " has been created!", eval.getValue(Function.identity()));
+                }else{
+                    return eval;
+                }
+            }
         }else{
             return new Failure("Operation not supported!");
         }
