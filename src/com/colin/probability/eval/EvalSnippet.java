@@ -182,6 +182,7 @@ public class EvalSnippet {
     }
     public static EvalResult evalArithmetic(String calc){
         List<String> operators = new ArrayList<>();
+        Storage store = Main.getStorage();
         //Good ole regex
         List<String> ops = Arrays.asList(calc.split("[+\\-*/<>(^]+(?![^(]*\\Q)\\E)")).stream().map(str -> str.trim()).collect(Collectors.toList());
         for(String s : ops){
@@ -245,12 +246,32 @@ public class EvalSnippet {
                 }else{
                     try{
                         int index = operators.indexOf(s);
-                        double base = Double.parseDouble(operators.get(index - 1));
-                        double exp = Double.parseDouble(operators.get(index + 1));
+                        String base = operators.get(index - 1);
+                        String exp = operators.get(index + 1);
+                        double aBase;
+                        double aExp;
+                        if(needsSubstitution(base)){
+                            if(!store.hasVariable(base)){
+                                return new Failure("Unable to find variable " + base);
+                            }else{
+                                aBase = store.getVariable(base);
+                            }
+                        }else{
+                            aBase = Double.parseDouble(base);
+                        }
+                        if (needsSubstitution(exp)) {
+                            if(!store.hasVariable(exp)){
+                                return new Failure("Unable to find variable " + base);
+                            }else{
+                                aExp = store.getVariable(exp);
+                            }
+                        }else{
+                            aExp = Double.parseDouble(exp);
+                        }
                         operators.remove(index + 1);
                         operators.remove(index);
                         operators.remove(index - 1);
-                        operators.add(index, String.valueOf(Math.pow(base,exp)));
+                        operators.add(index, String.valueOf(Math.pow(aBase,aExp)));
                     }catch(NumberFormatException nfe){
                         return new Failure("Unable to parse number. Expression: " + calc);
                     }
@@ -265,12 +286,32 @@ public class EvalSnippet {
                     return new Incomplete("Multiplication or division incomplete, missing an argument. Expression: " + calc);
                 }else{
                     try{
-                        double base = Double.parseDouble(operators.get(index - 1));
-                        double exp = Double.parseDouble(operators.get(index + 1));
+                        String base = operators.get(index - 1);
+                        String exp = operators.get(index + 1);
+                        double aBase;
+                        double aExp;
+                        if(needsSubstitution(base)){
+                            if(!store.hasVariable(base)){
+                                return new Failure("Unable to find variable " + base);
+                            }else{
+                                aBase = store.getVariable(base);
+                            }
+                        }else{
+                            aBase = Double.parseDouble(base);
+                        }
+                        if (needsSubstitution(exp)) {
+                            if(!store.hasVariable(exp)){
+                                return new Failure("Unable to find variable " + base);
+                            }else{
+                                aExp = store.getVariable(exp);
+                            }
+                        }else{
+                            aExp = Double.parseDouble(exp);
+                        }
                         operators.remove(index + 1);
                         operators.remove(index);
                         operators.remove(index - 1);
-                        operators.add(index, String.valueOf(s.equals("*") ? base * exp : base / exp));
+                        operators.add(index, String.valueOf(s.equals("*") ? aBase * aExp : aBase / aExp));
                     }catch(NumberFormatException nfe){
                         return new Failure("Unable to parse number. Expression: " + calc);
                     }
@@ -282,15 +323,35 @@ public class EvalSnippet {
             if(s.equals("+") || s.equals("-")){
                 int index = operators.indexOf(s);
                 if(index == 0 || index == operators.size() - 1){
-                    return new Incomplete("Multiplication or division incomplete, missing an argument. Expression: " + calc);
+                    return new Incomplete("Addition or subtraction incomplete, missing an argument. Expression: " + calc);
                 }else{
                     try{
-                        double base = Double.parseDouble(operators.get(index - 1));
-                        double exp = Double.parseDouble(operators.get(index + 1));
+                        String base = operators.get(index - 1);
+                        String exp = operators.get(index + 1);
+                        double aBase;
+                        double aExp;
+                        if(needsSubstitution(base)){
+                            if(!store.hasVariable(base)){
+                                return new Failure("Unable to find variable " + base);
+                            }else{
+                                aBase = store.getVariable(base);
+                            }
+                        }else{
+                            aBase = Double.parseDouble(base);
+                        }
+                        if (needsSubstitution(exp)) {
+                            if(!store.hasVariable(exp)){
+                                return new Failure("Unable to find variable " + base);
+                            }else{
+                                aExp = store.getVariable(exp);
+                            }
+                        }else{
+                            aExp = Double.parseDouble(exp);
+                        }
                         operators.remove(index + 1);
                         operators.remove(index);
                         operators.remove(index - 1);
-                        operators.add(index, String.valueOf(s.equals("+") ? base + exp : base - exp));
+                        operators.add(index, String.valueOf(s.equals("+") ? aBase + aExp : aBase - aExp));
                     }catch(NumberFormatException nfe){
                         return new Failure("Unable to parse number. Expression: " + calc);
                     }
@@ -298,12 +359,15 @@ public class EvalSnippet {
             }
         }
         if(operators.size() > 1){
-            return new Failure("Impossible: After all evaluations fail to get a single answer?");
+            return new Failure("Impossible: After all evaluations fail to get a single answer? Operators remaining: " + operators);
         }else{
             return new Success("Successfully calculated " + calc + " with answer " + operators.get(0),Double.parseDouble(operators.get(0)));
         }
     }
     public static EvalResult evalProbability(String toEval){
         return null;
+    }
+    public static boolean needsSubstitution(String check){
+        return check.chars().mapToObj(i -> (char) i).anyMatch(c -> !(c.equals(".") || Character.isDigit(c)));
     }
 }
