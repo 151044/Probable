@@ -9,6 +9,7 @@ import com.colin.probability.dists.PoissonDistribution;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Function;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -163,9 +164,9 @@ public class EvalSnippet {
             boolean success = true;
             for(String s : Arrays.asList(split).subList(1,split.length)){
                 if(store.hasDistribution(s)){
-                    build.append(s + "~" + store.getDistribution(s).toString() + "\n");
+                    build.append(s).append("~").append(store.getDistribution(s).toString()).append("\n");
                 }else if(store.hasVariable(s)){
-                    build.append(s + " = " + store.getVariable(s) + "\n");
+                    build.append(s).append(" = ").append(store.getVariable(s)).append("\n");
                 }else{
                     build.append("Unable to resolve variable or distribution " + s + "!\n");
                     success = false;
@@ -209,18 +210,21 @@ public class EvalSnippet {
         return toCheck.contains("+") || toCheck.contains("-") || toCheck.contains("*") || toCheck.contains("/") || toCheck.contains("^") || toCheck.contains("(");
     }
     public static EvalResult evalArithmetic(String calc){
+        calc = calc.replaceAll("\\s+","");
         List<String> operators = new ArrayList<>();
         Storage store = Main.getStorage();
         //Good ole regex
-        List<String> ops = Arrays.asList(calc.split("[+\\-*/<>(^]+(?![^(]*\\Q)\\E)")).stream().map(str -> str.trim()).collect(Collectors.toList());
+        List<String> ops = Arrays.stream(calc.split("[+\\-*/<>(^]+(?![^(]*\\Q)\\E)")).map(String::trim).collect(Collectors.toList());
         for(String s : ops){
             operators.add(s);
             int pt = calc.indexOf(s) + s.length();
+            //System.out.println(calc.length());
             if(!(pt >= calc.length())){
                 operators.add(String.valueOf(calc.charAt(pt)));
             }
         }
         //First pass, brackets
+        operators = new CopyOnWriteArrayList<>(operators);
         for(String s : operators){
             if(SYM.matcher(s).results().count() > 1){
                 //We are reasonably sure this is another, yet unevaluated snippet
@@ -299,14 +303,13 @@ public class EvalSnippet {
                         operators.remove(index + 1);
                         operators.remove(index);
                         operators.remove(index - 1);
-                        operators.add(index, String.valueOf(Math.pow(aBase,aExp)));
+                        operators.add(index - 1, String.valueOf(Math.pow(aBase,aExp)));
                     }catch(NumberFormatException nfe){
                         return new Failure("Unable to parse number. Expression: " + calc);
                     }
                 }
             }
         }
-        //Third pass, look for * and /
         for(String s : operators){
             if(s.equals("*") || s.equals("/")){
                 int index = operators.indexOf(s);
@@ -339,7 +342,7 @@ public class EvalSnippet {
                         operators.remove(index + 1);
                         operators.remove(index);
                         operators.remove(index - 1);
-                        operators.add(index, String.valueOf(s.equals("*") ? aBase * aExp : aBase / aExp));
+                        operators.add(index - 1, String.valueOf(s.equals("*") ? aBase * aExp : aBase / aExp));
                     }catch(NumberFormatException nfe){
                         return new Failure("Unable to parse number. Expression: " + calc);
                     }
@@ -379,7 +382,7 @@ public class EvalSnippet {
                         operators.remove(index + 1);
                         operators.remove(index);
                         operators.remove(index - 1);
-                        operators.add(index, String.valueOf(s.equals("+") ? aBase + aExp : aBase - aExp));
+                        operators.add(index - 1, String.valueOf(s.equals("+") ? aBase + aExp : aBase - aExp));
                     }catch(NumberFormatException nfe){
                         return new Failure("Unable to parse number. Expression: " + calc);
                     }
@@ -393,9 +396,10 @@ public class EvalSnippet {
         }
     }
     public static EvalResult evalProbability(String toEval){
+
         return null;
     }
     public static boolean needsSubstitution(String check){
-        return check.chars().mapToObj(i -> (char) i).anyMatch(c -> !(c.equals(".") || Character.isDigit(c)));
+        return check.chars().mapToObj(i -> (char) i).anyMatch(c -> !(c.equals('.') || Character.isDigit(c)));
     }
 }
