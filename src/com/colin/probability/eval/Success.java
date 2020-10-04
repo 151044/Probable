@@ -1,8 +1,8 @@
 package com.colin.probability.eval;
 
 public class Success extends AbstractResult{
-    public Success(String output) {
-        super(output);
+    public Success(String output,Object result) {
+        super(output,result);
     }
 
     @Override

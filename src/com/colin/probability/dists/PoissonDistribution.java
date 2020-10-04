@@ -26,4 +26,9 @@ public class PoissonDistribution extends AbstractDistribution{
     public double getVariance() {
         return getParameter();
     }
+
+    @Override
+    public String toString() {
+        return "Po(" + getParameter() + ")";
+    }
 }

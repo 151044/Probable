@@ -33,4 +33,9 @@ public class BinomialDistribution extends AbstractDistribution {
     public double getVariance() {
         return trials * getParameter() * (1.0 - getParameter());
     }
+
+    @Override
+    public String toString(){
+        return "B(" + trials + "," + getParameter() + ")";
+    }
 }

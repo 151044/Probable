@@ -6,7 +6,6 @@ import com.colin.probability.dists.BinomialDistribution;
 import com.colin.probability.dists.GeometricDistribution;
 import com.colin.probability.dists.PoissonDistribution;
 
-import java.nio.file.FileAlreadyExistsException;
 import java.util.Arrays;
 
 public class EvalSnippet {
@@ -29,6 +28,8 @@ public class EvalSnippet {
                 return new Incomplete("Start bracket is missing.");
             }else if(closePos == -1){
                 return new Incomplete("End bracket is missing.");
+            }else if(startPos > closePos){
+                return new Failure("Close bracket before start bracket: " + toEval);
             }
             String params = str.substring(startPos,closePos);
             if(str.contains("Po")){
@@ -36,14 +37,16 @@ public class EvalSnippet {
                     double p = Double.parseDouble(params);
                     if(store.hasDistribution(arr[0])){
                         if(doOverwrite){
-                            store.addDistribution(arr[0],new PoissonDistribution(p));
-                            return new Warning("Overwritten original value of " + arr[0] + ".");
+                            PoissonDistribution dist = new PoissonDistribution(p);
+                            store.addDistribution(arr[0],dist);
+                            return new Warning("Overwritten original value of " + arr[0] + ".",dist);
                         }else{
                             return new Failure("Input distribution with the name " + arr[0] + " already exists.");
                         }
                     }else{
-                        store.addDistribution(arr[0], new PoissonDistribution(p));
-                        return new Success("Successfully added " + arr[0] + ".");
+                        PoissonDistribution dist = new PoissonDistribution(p);
+                        store.addDistribution(arr[0], dist);
+                        return new Success("Successfully added " + arr[0] + ".",dist);
                     }
                 }catch(NumberFormatException nfe){
                     return new Failure(str + " cannot be read as a number.");
@@ -53,14 +56,16 @@ public class EvalSnippet {
                     double p = Double.parseDouble(params);
                     if(store.hasDistribution(arr[0])){
                         if(doOverwrite){
-                            store.addDistribution(arr[0],new GeometricDistribution(p));
-                            return new Warning("Overwritten original value of " + arr[0] + ".");
+                            GeometricDistribution dist = new GeometricDistribution(p);
+                            store.addDistribution(arr[0],dist);
+                            return new Warning("Overwritten original value of " + arr[0] + ".",dist);
                         }else{
                             return new Failure("Input distribution with the name " + arr[0] + " already exists.");
                         }
                     }else{
-                        store.addDistribution(arr[0], new GeometricDistribution(p));
-                        return new Success("Successfully added " + arr[0] + ".");
+                        GeometricDistribution dist = new GeometricDistribution(p);
+                        store.addDistribution(arr[0], dist);
+                        return new Success("Successfully added " + arr[0] + ".", dist);
                     }
                 }catch(NumberFormatException nfe){
                     return new Failure(str + " cannot be read as a number.");
@@ -75,14 +80,16 @@ public class EvalSnippet {
                     int trials = Integer.parseInt(arr[0]);
                     if(store.hasDistribution(arr[0])){
                         if(doOverwrite){
-                            store.addDistribution(arr[0],new BinomialDistribution(p,trials));
-                            return new Warning("Overwritten original value of " + arr[0] + ".");
+                            BinomialDistribution dist = new BinomialDistribution(p, trials);
+                            store.addDistribution(arr[0],dist);
+                            return new Warning("Overwritten original value of " + arr[0] + ".",dist);
                         }else{
                             return new Failure("Input distribution with the name " + arr[0] + " already exists.");
                         }
                     }else{
-                        store.addDistribution(arr[0], new BinomialDistribution(p,trials));
-                        return new Success("Successfully added " + arr[0] + ".");
+                        BinomialDistribution dist = new BinomialDistribution(p, trials);
+                        store.addDistribution(arr[0], dist);
+                        return new Success("Successfully added " + arr[0] + ".",dist);
                     }
                 }catch(NumberFormatException nfe){
                     return new Failure(str + " cannot be read as a number.");
@@ -91,7 +98,24 @@ public class EvalSnippet {
                 return new Failure("Distribution " + str.substring(0,startPos) + " is not supported!");
             }
         }else if(toEval.contains("print")){
-            return new Success("");
+            String[] split = toEval.split(" ");
+            StringBuilder build = new StringBuilder();
+            boolean success = true;
+            for(String s : Arrays.asList(split).subList(1,split.length)){
+                if(store.hasDistribution(s)){
+                    build.append(s + "~" + store.getDistribution(s).toString() + "\n");
+                }else if(store.hasVariable(s)){
+                    build.append(s + "=" + store.getVariable(s) + "\n");
+                }else{
+                    build.append("Unable to resolve variable or distribution " + s + "!\n");
+                    success = false;
+                }
+            }
+            if(success) {
+                return new Success(build.toString(), build.toString());
+            }else{
+                return new Warning(build.append("Warning: One or more variables cannot be found!\n").toString(), build.toString());
+            }
         }else{
             return new Failure("Operation not supported!");
         }

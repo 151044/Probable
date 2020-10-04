@@ -1,8 +1,8 @@
 package com.colin.probability.eval;
 
 public class Warning extends AbstractResult{
-    public Warning(String output) {
-        super("Warning: " + output);
+    public Warning(String output, Object result) {
+        super("Warning: " + output, result);
     }
 
     @Override
