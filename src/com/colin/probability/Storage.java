@@ -24,4 +24,7 @@ public class Storage {
     public boolean hasDistribution(String repr){
         return dist.containsKey(repr);
     }
+    public String dump(){
+        return dist.toString() + " " + vars.toString();
+    }
 }

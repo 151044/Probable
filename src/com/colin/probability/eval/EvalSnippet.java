@@ -22,9 +22,10 @@ public class EvalSnippet {
     public EvalResult eval(){
         Storage store = Main.getStorage();
         if(toEval.contains("~")){
+            System.out.println(toEval);
             String[] arr = toEval.split("~");
             boolean doOverwrite = Arrays.asList(arr).contains("--overwrite");
-            if(arr.length != 2 || (!doOverwrite && arr.length != 3)){
+            if(arr.length != 2 || (doOverwrite && arr.length != 3)){
                 return new Incomplete(toEval + " is missing either the name of the random variable or the distribution.");
             }
             String str = arr[1];
@@ -37,7 +38,8 @@ public class EvalSnippet {
             }else if(startPos > closePos){
                 return new Failure("Close bracket before start bracket: " + toEval);
             }
-            String params = str.substring(startPos,closePos);
+            String params = str.substring(startPos + 1,closePos);
+            System.out.println(params);
             if(str.contains("Po")){
                 double p;
                 try{
@@ -48,8 +50,9 @@ public class EvalSnippet {
                         }else{
                             return eval;
                         }
+                    }else {
+                        p = Double.parseDouble(params);
                     }
-                    p = Double.parseDouble(params);
                     if (p < 0.0 || p > 1.0) {
                         return new Failure("Probability for distribution out of range!");
                     }
@@ -162,7 +165,7 @@ public class EvalSnippet {
                 if(store.hasDistribution(s)){
                     build.append(s + "~" + store.getDistribution(s).toString() + "\n");
                 }else if(store.hasVariable(s)){
-                    build.append(s + "=" + store.getVariable(s) + "\n");
+                    build.append(s + " = " + store.getVariable(s) + "\n");
                 }else{
                     build.append("Unable to resolve variable or distribution " + s + "!\n");
                     success = false;
@@ -175,7 +178,7 @@ public class EvalSnippet {
             }
         }else if(toEval.contains("=")) {
             String[] split = toEval.split("=");
-            String name = toEval.trim();
+            String name = split[0].trim();
             if(store.hasVariable(name)){
                 if(!Arrays.asList(split).contains("--overwrite")){
                     return new Failure("Variable " + name + " already exists!");
@@ -190,11 +193,14 @@ public class EvalSnippet {
             }else {
                 EvalResult eval = evalArithmetic(split[1]);
                 if(eval.isSuccess()) {
+                    Main.getStorage().addVariable(name,eval.getValue((Object obj) -> (double) obj));
                     return new Success("Variable " + name + " has been created!", eval.getValue(Function.identity()));
                 }else{
                     return eval;
                 }
             }
+        }else if(toEval.equals("dump")) {
+            return new Success(Main.getStorage().dump(),Main.getStorage().dump());
         }else{
             return new Failure("Operation not supported!");
         }
