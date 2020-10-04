@@ -6,10 +6,16 @@ import com.colin.probability.dists.BinomialDistribution;
 import com.colin.probability.dists.GeometricDistribution;
 import com.colin.probability.dists.PoissonDistribution;
 
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
+import java.util.function.Function;
+import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 public class EvalSnippet {
-    private String toEval;
+    private static final Pattern SYM = Pattern.compile("[+\\-*/^]");
+    private final String toEval;
     public EvalSnippet(String toEval){
         this.toEval = toEval;
     }
@@ -33,27 +39,52 @@ public class EvalSnippet {
             }
             String params = str.substring(startPos,closePos);
             if(str.contains("Po")){
+                double p;
                 try{
-                    double p = Double.parseDouble(params);
-                    if(store.hasDistribution(arr[0])){
-                        if(doOverwrite){
-                            PoissonDistribution dist = new PoissonDistribution(p);
-                            store.addDistribution(arr[0],dist);
-                            return new Warning("Overwritten original value of " + arr[0] + ".",dist);
+                    if(hasOperators(params)){
+                        EvalResult eval = evalArithmetic(params);
+                        if(eval.isSuccess()){
+                            p = eval.getValue((Object obj) -> (double) obj);
                         }else{
+                            return eval;
+                        }
+                    }
+                    p = Double.parseDouble(params);
+                    if (p < 0.0 || p > 1.0) {
+                        return new Failure("Probability for distribution out of range!");
+                    }
+                    if (store.hasDistribution(arr[0])) {
+                        if (doOverwrite) {
+                            PoissonDistribution dist = new PoissonDistribution(p);
+                            store.addDistribution(arr[0], dist);
+                            return new Warning("Overwritten original value of " + arr[0] + ".", dist);
+                        } else {
                             return new Failure("Input distribution with the name " + arr[0] + " already exists.");
                         }
-                    }else{
+                    } else {
                         PoissonDistribution dist = new PoissonDistribution(p);
                         store.addDistribution(arr[0], dist);
-                        return new Success("Successfully added " + arr[0] + ".",dist);
+                        return new Success("Successfully added " + arr[0] + ".", dist);
                     }
                 }catch(NumberFormatException nfe){
                     return new Failure(str + " cannot be read as a number.");
                 }
             }else if(str.contains("Geo")){
                 try{
-                    double p = Double.parseDouble(params);
+                    double p;
+                    if(hasOperators(params)){
+                        EvalResult eval = evalArithmetic(params);
+                        if(eval.isSuccess()){
+                            p = eval.getValue((Object obj) -> (double) obj);
+                        }else{
+                            return eval;
+                        }
+                    }else{
+                        p = Double.parseDouble(params);
+                    }
+                    if(p < 0.0 || p > 1.0){
+                        return new Failure("Probability for distribution out of range!");
+                    }
                     if(store.hasDistribution(arr[0])){
                         if(doOverwrite){
                             GeometricDistribution dist = new GeometricDistribution(p);
@@ -76,8 +107,34 @@ public class EvalSnippet {
                     if(parameters.length != 2){
                         return new Incomplete("Insufficient parameters for binomial distribution. Provided: " + parameters);
                     }
-                    double p = Double.parseDouble(arr[1]);
-                    int trials = Integer.parseInt(arr[0]);
+                    double p;
+                    if(hasOperators(arr[1])){
+                        EvalResult eval = evalArithmetic(arr[1]);
+                        if(eval.isSuccess()){
+                            p = eval.getValue((Object obj) -> (double) obj);
+                        }else{
+                            return eval;
+                        }
+                    }else{
+                        p = Double.parseDouble(arr[1]);
+                    }
+                    int trials;
+                    if(hasOperators(arr[0])){
+                        EvalResult eval = evalArithmetic(params);
+                        if(eval.isSuccess()){
+                            //This is a round *down*, take note of that
+                            trials = eval.getValue((Object obj) -> (int) obj);
+                        }else{
+                            return eval;
+                        }
+                    }else{
+                        trials = Integer.parseInt(arr[0]);
+                    }
+                    if(p < 0.0 || p > 1.0){
+                        return new Failure("Probability for distribution out of range!");
+                    }else if(trials < 1){
+                        return new Failure("Too few trials!");
+                    }
                     if(store.hasDistribution(arr[0])){
                         if(doOverwrite){
                             BinomialDistribution dist = new BinomialDistribution(p, trials);
@@ -119,5 +176,134 @@ public class EvalSnippet {
         }else{
             return new Failure("Operation not supported!");
         }
+    }
+    private boolean hasOperators(String toCheck){
+        return toCheck.contains("+") || toCheck.contains("-") || toCheck.contains("*") || toCheck.contains("/") || toCheck.contains("^") || toCheck.contains("(");
+    }
+    public static EvalResult evalArithmetic(String calc){
+        List<String> operators = new ArrayList<>();
+        //Good ole regex
+        List<String> ops = Arrays.asList(calc.split("[+\\-*/<>(^]+(?![^(]*\\Q)\\E)")).stream().map(str -> str.trim()).collect(Collectors.toList());
+        for(String s : ops){
+            operators.add(s);
+            int pt = calc.indexOf(s) + s.length();
+            if(!(pt >= calc.length())){
+                operators.add(String.valueOf(calc.charAt(pt)));
+            }
+        }
+        //First pass, brackets
+        for(String s : operators){
+            if(SYM.matcher(s).results().count() > 1){
+                //We are reasonably sure this is another, yet unevaluated snippet
+                //As only those can be not split
+                //Final test for brackets, then throw this back into this method
+                int startPos = s.lastIndexOf("(");
+                int closePos = s.lastIndexOf(")");
+                if(startPos == -1){
+                    return new Incomplete("Start bracket is missing.");
+                }else if(closePos == -1){
+                    return new Incomplete("End bracket is missing.");
+                }else if(startPos > closePos){
+                    return new Failure("Close bracket before start bracket: " + calc);
+                }
+                if(startPos != 0 || closePos != s.length() - 1){
+                    return new Incomplete("Impossible: Brackets not at the start of the split expression? Expression: " + calc);
+                }
+                //strip off the brackets, then reevaluate
+                EvalResult eval = evalArithmetic(s.substring(1, s.length() - 2));
+                if(eval.isSuccess()){
+                    int index = operators.indexOf(s);
+                    operators.remove(index + 1);
+                    operators.remove(index);
+                    operators.remove(index - 1);
+                    operators.add(index, String.valueOf(eval.getValue((Object obj) -> {
+                        //Cast, we know the answer is double, we stored it there!
+                        return (double) obj;
+                    })));
+                }else{
+                    return eval;
+                }
+            }
+        }
+        //1.5th pass, look for expressions that can be replaced
+        for(String s : operators){
+            if(s.startsWith("P(")){
+                EvalResult eval = evalProbability(s);
+                if(eval.isSuccess()){
+                    int index = operators.indexOf(s);
+                    operators.set(index,eval.getValue((Object obj) -> String.valueOf((double) obj)));
+                }else{
+                    return eval;
+                }
+            }
+        }
+        //Second pass, look for ^
+        for(String s : operators){
+            if(s.equals("^")){
+                if(operators.indexOf(s) == 0 || operators.indexOf(s) == operators.size() - 1){
+                    return new Incomplete("Exponent operator incomplete, missing either exponent or base. Expression:" + calc);
+                }else{
+                    try{
+                        int index = operators.indexOf(s);
+                        double base = Double.parseDouble(operators.get(index - 1));
+                        double exp = Double.parseDouble(operators.get(index + 1));
+                        operators.remove(index + 1);
+                        operators.remove(index);
+                        operators.remove(index - 1);
+                        operators.add(index, String.valueOf(Math.pow(base,exp)));
+                    }catch(NumberFormatException nfe){
+                        return new Failure("Unable to parse number. Expression: " + calc);
+                    }
+                }
+            }
+        }
+        //Third pass, look for * and /
+        for(String s : operators){
+            if(s.equals("*") || s.equals("/")){
+                int index = operators.indexOf(s);
+                if(index == 0 || index == operators.size() - 1){
+                    return new Incomplete("Multiplication or division incomplete, missing an argument. Expression: " + calc);
+                }else{
+                    try{
+                        double base = Double.parseDouble(operators.get(index - 1));
+                        double exp = Double.parseDouble(operators.get(index + 1));
+                        operators.remove(index + 1);
+                        operators.remove(index);
+                        operators.remove(index - 1);
+                        operators.add(index, String.valueOf(s.equals("*") ? base * exp : base / exp));
+                    }catch(NumberFormatException nfe){
+                        return new Failure("Unable to parse number. Expression: " + calc);
+                    }
+                }
+            }
+        }
+        //Final pass, addition and subtraction
+        for(String s : operators){
+            if(s.equals("+") || s.equals("-")){
+                int index = operators.indexOf(s);
+                if(index == 0 || index == operators.size() - 1){
+                    return new Incomplete("Multiplication or division incomplete, missing an argument. Expression: " + calc);
+                }else{
+                    try{
+                        double base = Double.parseDouble(operators.get(index - 1));
+                        double exp = Double.parseDouble(operators.get(index + 1));
+                        operators.remove(index + 1);
+                        operators.remove(index);
+                        operators.remove(index - 1);
+                        operators.add(index, String.valueOf(s.equals("+") ? base + exp : base - exp));
+                    }catch(NumberFormatException nfe){
+                        return new Failure("Unable to parse number. Expression: " + calc);
+                    }
+                }
+            }
+        }
+        if(operators.size() > 1){
+            return new Failure("Impossible: After all evaluations fail to get a single answer?");
+        }else{
+            return new Success("Successfully calculated " + calc + " with answer " + operators.get(0),Double.parseDouble(operators.get(0)));
+        }
+    }
+    public static EvalResult evalProbability(String toEval){
+        return null;
     }
 }
