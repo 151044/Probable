@@ -23,7 +23,7 @@ public class GeometricDistribution extends AbstractDistribution {
 
     @Override
     public double getVariance() {
-        return (1 - getParameter()) / (getParameter() * getParameter());
+        return (1.0 - getParameter()) / (getParameter() * getParameter());
     }
 
     @Override
